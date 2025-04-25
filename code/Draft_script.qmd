@@ -128,8 +128,8 @@ trait_clean <- trait_df %>%
   select(-yield_mg_ha, -grain_moisture, -date_planted, -date_harvested, -planting_date, -harvest_date) %>%
   ungroup()
 
-trait_avg_df
 
+trait_clean
 
 ```
 
@@ -149,8 +149,6 @@ The following code chunk will conduct data wrangling on  "training_soil.csv"
 
 ```{r data_wrangling_training_soil, message=F, warning=F}
 
-library(stringr)
-
 soil_clean <- soil_df %>%
   mutate(
     # 1) remove all lowercase letters
@@ -162,7 +160,7 @@ soil_clean <- soil_df %>%
   ) %>%
   ungroup()
 
-summary(soil_clean)
+soil_clean
 ```
 
 
@@ -173,11 +171,13 @@ summary(soil_clean)
 ```
 
 
+# Data wrangling on "meta_df"
+
 The following code chunk will conduct data wrangling on  "training_meta.csv".
 
 ```{r clean_meta_sites}
 
-meta_clean <- meta_df %>%
+meta_df2 <- meta_df %>%
   rename(
     lon = longitude,
     lat = latitude
@@ -193,6 +193,8 @@ meta_clean <- meta_df %>%
   distinct(year, site, .keep_all = TRUE) %>%
   ungroup()
 
+meta_df2
+
 ```
 
 
@@ -200,9 +202,8 @@ The code below will create categories for previous crops.
 
 
 ```{r}
-library(stringr)
 
-meta_clean <- meta_clean %>%
+meta_clean <- meta_df2 %>%
   mutate(
     # 1) lowercase & trim
     prev_crop_raw = str_to_lower(str_squish(previous_crop)),
@@ -226,6 +227,16 @@ meta_clean
 ```
 
 
+# EDA for cleaned data
+
+
+```{r}
+summary(trait_clean)
+```
+```{r}
+summary(soil_clean)
+```
+
 
 ```{r}
 summary(meta_clean)
@@ -239,26 +250,28 @@ summary(meta_clean)
 ```
 
 
+# Merging all 3 cleaned data frames
+
 
 ```{r}
 
-merged_clean  <- trait_avg_df %>%
+merged_clean  <- trait_clean %>%
   left_join(soil_clean, by = c("year", "site")) %>%
   left_join(meta_clean, by = c("year", "site"))
 
+merged_clean
+```
+
+```{r}
 summary(merged_clean)
 ```
 
-# Exporting  
 
-The following code chunk will export the wrangled data into a .csv.
-
-```{r exporting wrangled data set}
+```{r exporting merged data set}
 
 #write_csv(merged_clean,
           #"../data/training_merged_clean.csv")
 ```
-
 
 # End of Data Wrangling 
 
@@ -289,10 +302,13 @@ library(USAboundariesData)
 ```
 
 
+The following code chunk will create a map of the USA and plot the sites in the map based on their latitude and longitude.
+
+
 ```{r create map of USA and add points, message=F, warning=F}
 
 states <- us_states() %>% 
-  filter( !(state_abbr %in% c("PR", "AK", "HI")) ) #to remove "PR" (Puerto Rico), "AK" (Alaska), and "HI" (Hawaii) from the rows of "states" object i.e., to keep all states that are NOT "PR", "AK", and "HI" #we use "%in%" to filter (i.e., work on) more than one state/entry #if we wanted to filter just 1 state, we would use == sign e.g., !(state_abbr == c("PR"))
+  filter( !(state_abbr %in% c("PR", "AK", "HI")) ) #to remove "PR" (Puerto Rico), "AK" (Alaska), and "HI" (Hawaii)
   
 ggplot() +
   geom_sf(data = states) + #"geom_sf()" is used to plot "sf" object, which we just created above as "states" object; plots all states and territories of USA
@@ -308,7 +324,7 @@ ggplot() +
 
 ```
 
-
+The following code chunk will keep the observations for site-years having latitude and longitude withing the Daymet range of co-ordinates.
 
 
 ```{r}
@@ -336,16 +352,15 @@ message("Rows kept: ", nrow(merged_daymet),
 
 
 ```
+The following code chunk will extract unique combinations of year, site, and their coordinates.
 
 ```{r unique_site_years_with_coords}
 
-# Extract unique combinations of year, site, and their coordinates
 site_year_df <- merged_daymet %>%
-  select(year, site, lon, lat) %>%  # include longitude and latitude
-  distinct() %>%                     # one row per unique combination
+  select(year, site, lon, lat) %>%  # need to include longitude and latitude along with site-years
+  distinct() %>%                    
   arrange(year, site)
 
-# Inspect the result
 site_year_df
 
 ```
@@ -385,7 +400,7 @@ weather_daymet_unnest <- weather_daymet_all %>%
   unnest(weather) %>% 
   pivot_wider(names_from = measurement, 
               values_from = value) %>% 
-  janitor::clean_names() #
+  janitor::clean_names()
 
 weather_daymet_unnest
 
@@ -419,7 +434,6 @@ daymet_all_unnest
           )
 
 ```
-
 
 
 # End of retreiving weather data from Daymet 
