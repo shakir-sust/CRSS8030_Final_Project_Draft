@@ -831,6 +831,7 @@ XgBoost **hyperparameters**:
 -   **`learn_rate`**: Also known as `eta`, it controls how much each additional tree contributes to the overall model. Smaller values make the model more stable but require more trees.
 
 ```{r xgb_spec}
+
 xgb_spec <- boost_tree(
   trees = tune(),
   tree_depth = tune(),  # Maximum depth of each tree
