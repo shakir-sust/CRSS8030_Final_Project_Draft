@@ -67,6 +67,8 @@ soil_df  <- read_csv("../data/training/training_soil.csv")
 
 summary(trait_df)
 
+View(trait_df)
+
 ```
 ```{r}
 
@@ -429,6 +431,8 @@ fieldweather <- daymet_all_unnest
 
 fieldweather
 
+View(fieldweather)
+
 ```
 
 
@@ -543,6 +547,7 @@ fe_month <- fe_month%>%
 
 fe_month
 
+
 ```
 
 
@@ -608,7 +613,7 @@ fe_month_sum_wide <- fe_month_sum %>%
               values_from = value) %>%
   # Rounding to one decimal point
   mutate(across(10:ncol(.), ~round(., 1) )) %>%
-  select(-mean_soil.ph_NA, -mean_soil.om.pct_NA, -mean_soil.k.ppm_NA, -mean_soil.p.ppm_NA, -mean_dayl.s_NA, -mean_srad.wm2_NA, -mean_tmax.c_NA, -mean_tmin.c_NA, -mean_vp.pa_NA, -sum_prcp.mm_NA)
+  select(-lon, -lat, -mean_soil.ph_NA, -mean_soil.om.pct_NA, -mean_soil.k.ppm_NA, -mean_soil.p.ppm_NA, -mean_dayl.s_NA, -mean_srad.wm2_NA, -mean_tmax.c_NA, -mean_tmin.c_NA, -mean_vp.pa_NA, -sum_prcp.mm_NA)
 
 
 fe_month_sum_wide  
@@ -670,13 +675,11 @@ finalplots
 
 
 ```{r}
-#| message: false
 
 finalplots$plot #$plot to print all the ggplots for each variables
 
 ```
 
-#Export weather_monthsum.csv
 
 ```{r}
 
@@ -686,45 +689,239 @@ finalplots$plot #$plot to print all the ggplots for each variables
 ```
 
 
+# End of feature engineering
 
-# Feature engineering "planting stages" and "harvest stages":
+# Start of XGboost
 
-The code chunk below is to feature engineer planting and harvest stages based on the following cut-offs for planting day of the year (plant_doy) and harvest day of the year (harvest_doy):
+# ML Workflow with XGBoost
 
-Planting stages:
- - early: plant_doy ≤ 120
- - normal: plant_doy = 121–150
- - late: plant_doy > 150
+## Step 1: Load Libraries
 
-Harvest stages:
- - early: harvest_doy ≤ 275
- - normal: harvest_doy = 276–305
- - late: harvest_doy > 305
+We begin by loading the required libraries:
 
+```{r}
+#| message: false
+#| warning: false
+#install.packages("xgboost") #new pacakage
+library(tidymodels)   # Core framework for modeling (includes recipes, workflows, parsnip, etc.)
+library(finetune)     # Additional tuning strategies (e.g., racing, ANOVA-based tuning)
+library(vip)          # For plotting variable importance from fitted models
+library(xgboost)      # XGBoost implementation in R
+library(ranger)       # Fast implementation of Random Forests
+library(tidyverse)    # Data wrangling and visualization
+library(doParallel)   # For parallel computing (useful during resampling/tuning)
+#library(caret)       # Other great library for Machine Learning 
+```
+
+The following code chunk will rename the "fe_month_sum_wide" data frame as "weather".   
 
 ```{r}
 
-trait_avg_df <- trait_avg_df %>%
-mutate(
-    planting_stages = case_when(
-      plant_doy <= 120                     ~ "early",
-      plant_doy >= 121 & plant_doy <= 150  ~ "normal",
-      plant_doy > 150                      ~ "late"
-    ) %>% 
-      fct_relevel("early","normal","late"),
-    
-    harvest_stages = case_when(
-      harvest_doy <= 275                    ~ "early",
-      harvest_doy >= 276 & harvest_doy <= 305 ~ "normal",
-      harvest_doy > 305                     ~ "late"
-    ) %>% 
-      fct_relevel("early","normal","late")
-  ) %>%
-  select( -plant_doy, -harvest_doy) %>%
-  ungroup()
-
-trait_avg_df
-
-View(trait_avg_df)
+weather <- fe_month_sum_wide
+weather
 
 ```
+
+# ML workflow
+
+## 1. Pre-processing
+
+```{r weather_split}
+
+set.seed(931735) # Setting seed to get reproducible results 
+
+weather_split <- initial_split(
+  weather, 
+  prop = .7, # proption of split same as previous codes
+  strata = yield  # Stratify by target variable
+  )
+
+weather_split
+
+```
+
+### a. Data split
+
+For data split, let's use **70% training / 30% testing**.
+
+```{r weather_train}
+
+weather_train <- training(weather_split)  # 70% of data
+
+weather_train #This is your traing data frame
+
+```
+
+
+```{r weather_test}
+
+weather_test <- testing(weather_split)    # 30% of data
+
+weather_test
+
+```
+
+
+### b. Distribution of target variable
+
+```{r distribution}
+ggplot() +
+  geom_density(data = weather_train, 
+               aes(x = yield),
+               color = "red") +
+  geom_density(data = weather_test, 
+               aes(x = yield),
+               color = "blue") 
+  
+```
+
+### c. Data processing with recipe
+
+
+Creating a recipe is an easy way to port your processing steps for other data sets without needing to repeat code, and also only considering the data it is being applied to.
+
+You can find all available recipe step options here: https://tidymodels.github.io/recipes/reference/index.html
+
+Different model types require different processing steps.\
+Let's check what steps are required for an elastic net model (linear_reg). We can search for that in this link: https://www.tmwr.org/pre-proc-table #Don't need for numeric data
+
+
+```{r weather_recipe}
+
+# Create recipe for data preprocessing
+weather_recipe <- recipe(yield ~ ., data = weather_train) %>% # Remove identifier columns and months not in growing season
+  step_rm(
+    year,       # Remove year identifier
+    site,       # Remove site identifier
+    matches("Jan|Feb|Mar|Dec")  # Remove non-growing season months
+  ) %>%
+  # Turning every factor (prev_crop, planting_stages, harvest_stages, etc.) into dummies
+  step_dummy(all_nominal_predictors()) %>%
+  # Imputation for any numeric NAs   
+  step_impute_median(all_numeric_predictors())
+
+weather_recipe
+
+```
+
+```{r weather_prep}
+# Prep the recipe to estimate any required statistics
+weather_prep <- weather_recipe %>% 
+  prep()
+
+# Examine preprocessing steps
+weather_prep
+```
+## 2. Training
+
+### a. Model specification
+
+First, let's specify:\
+- the **type of model** we want to train\
+- which **engine** we want to use\
+- which **mode** we want to use
+
+> Elastic nets can only be run for a numerical response variable. XgBoost can be run with either numerical (regression) or categorical (classification) explanatory variable. Therefore, we have the need to specify the mode here.
+
+XgBoost **hyperparameters**:
+
+-   **`trees`**: The number of boosting rounds (i.e., how many trees will be added sequentially).\
+-   **`tree_depth`**: Controls how deep each individual tree can grow. Deeper trees can capture more complex interactions but also increase the risk of overfitting.\
+-   **`min_n`**: Minimum number of observations required in a node for it to be split. Acts as a regularization tool to prevent overly specific splits.\
+-   **`learn_rate`**: Also known as `eta`, it controls how much each additional tree contributes to the overall model. Smaller values make the model more stable but require more trees.
+
+```{r xgb_spec}
+xgb_spec <- boost_tree(
+  trees = tune(),
+  tree_depth = tune(),  # Maximum depth of each tree
+  min_n = tune(),  # Minimum samples required to split a node
+  learn_rate = tune()) %>% #Specifying XgBoost as our model type, asking to tune the hyperparameters
+  set_engine("xgboost") %>% #specify engine 
+  set_mode("regression")  # Set to mode
+   # Total number of boosting iterations
+        
+            
+        # Step size shrinkage for each boosting step
+
+       
+  
+       
+xgb_spec
+
+```
+
+### b. Cross-validation setup
+
+We use 5-fold cross-validation to evaluate model performance during tuning:
+
+```{r}
+
+set.seed(235) #34549
+
+resampling_foldcv <- vfold_cv(weather_train, 
+                              v = 5)
+
+resampling_foldcv
+
+resampling_foldcv$splits[[1]]
+
+```
+### c. Hyperparameter grid with Latin Hypercube Sampling
+
+We use Latin hypercube sampling to generate a diverse grid of hyperparameter combinations:
+
+```{r }
+
+xgb_grid <- grid_latin_hypercube(
+  tree_depth(),
+  min_n(),
+  learn_rate(),
+  trees(),
+  size = 10
+)
+
+xgb_grid
+```
+
+```{r}
+ggplot(data = xgb_grid,
+       aes(x = tree_depth, 
+           y = min_n)) +
+  geom_point(aes(color = factor(learn_rate), #coloring the bubbles based on learn_rate
+                 size = trees), #size of the bubbles are based on the tress
+             alpha = .5,
+             show.legend = FALSE)
+```
+
+## 3. Model Tuning
+
+```{r xgb_grid_result}
+
+#install.packages("doParallel")
+#install.packages("parallel")
+
+library(doParallel)
+library(parallel)
+
+set.seed(76544)
+
+#parallel processing
+registerDoParallel(cores = parallel::detectCores()-1)
+
+xgb_res <- tune_race_anova(object = xgb_spec,
+                      preprocessor = weather_recipe,
+                      resamples = resampling_foldcv,
+                      grid = xgb_grid,
+                      control = control_race(save_pred = TRUE))
+
+stopImplicitCluster()
+
+beepr::beep()
+
+xgb_res$.metrics[[2]]
+
+```
+
+
+
+
