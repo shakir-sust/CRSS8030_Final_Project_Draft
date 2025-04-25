@@ -8,6 +8,8 @@ format:
 author: Md Shakir Moazzem, Umar Munir
 ---
 
+# Start of data wrangling
+
 # Introduction  
 
 This script contains the data wrangling steps for the final project.  
@@ -59,6 +61,31 @@ soil_df  <- read_csv("../data/training/training_soil.csv")
 
 ```
 
+## EDA
+
+```{r}
+
+summary(trait_df)
+
+```
+```{r}
+
+summary(meta_df)
+
+```
+
+
+
+```{r}
+
+summary(soil_df)
+
+```
+
+
+# Data wrangling on "trait_df"
+
+The code below creates a function to adjust the yield_mg_ha for 15.5% grain moisture.
 
 ```{r}
 
@@ -70,18 +97,18 @@ adjust_yield <- function(yield_mg_ha, grain_moisture) {
 ```
 
 
-```{r clean_and_summarize_trait, message=F, warning=F}
-library(stringr)
+The code below conducts data wrangling on "trait_df"
 
-trait_avg_df <- trait_df %>%
+```{r clean_and_summarize_trait, message=F, warning=F}
+
+
+
+trait_clean <- trait_df %>%
   select(-block) %>%
-  # 1) remove all lowercase letters from site
-  # 2) keep only text before any dash
-  # 3) keep only text before any underscore
   mutate(
-    site = str_remove_all(site, "[a-z]"),
-    site = str_replace(site, "-.*$", ""),
-    site = str_replace(site, "_.*$", "")
+    site = str_remove_all(site, "[a-z]"), # removing all lowercase letters from site
+    site = str_replace(site, "-.*$", ""), # keeping only text before any dash
+    site = str_replace(site, "_.*$", "") # keeping only text before any underscore
   ) %>%
   group_by(year, site, hybrid) %>%
   summarize(
@@ -97,22 +124,25 @@ trait_avg_df <- trait_df %>%
     harvest_date   = as.Date(date_harvested, "%m/%j/%y"),
     plant_doy      = yday(planting_date),
     harvest_doy    = yday(harvest_date),
-    season_len     = harvest_doy - plant_doy
   ) %>%
-  select(-yield_mg_ha, -grain_moisture, -date_planted, -date_harvested) %>%
+  select(-yield_mg_ha, -grain_moisture, -date_planted, -date_harvested, -planting_date, -harvest_date) %>%
   ungroup()
 
 trait_avg_df
 
+
 ```
+
 
 
 ```{r exporting wrangled data set}
 
-write_csv(trait_avg_df,
-          "../data/training_trait_clean.csv")
+#write_csv(trait_avg_df,
+          #"../data/training_trait_clean.csv")
 ```
 
+
+# Data wrangling on "soil_df"
 
 The following code chunk will conduct data wrangling on  "training_soil.csv"
 
@@ -129,14 +159,17 @@ soil_clean <- soil_df %>%
     site = str_replace(site, "-.*$", ""),
     # 3) keep only text before any underscore
     site = str_replace(site, "_.*$", "")
-  )
+  ) %>%
+  ungroup()
+
+summary(soil_clean)
 ```
 
 
 ```{r exporting wrangled data set}
 
-write_csv(soil_clean,
-          "../data/training_soil_clean.csv")
+#write_csv(soil_clean,
+          #"../data/training_soil_clean.csv")
 ```
 
 
@@ -149,7 +182,6 @@ meta_clean <- meta_df %>%
     lon = longitude,
     lat = latitude
   ) %>%
-  select(-previous_crop) %>%
   mutate(
     # 1) remove all lowercase letters
     site = str_remove_all(site, "[a-z]"),
@@ -164,10 +196,46 @@ meta_clean <- meta_df %>%
 ```
 
 
+The code below will create categories for previous crops.
+
+
+```{r}
+library(stringr)
+
+meta_clean <- meta_clean %>%
+  mutate(
+    # 1) lowercase & trim
+    prev_crop_raw = str_to_lower(str_squish(previous_crop)),
+    # 2) recode into your desired levels
+    prev_crop = case_when(
+      prev_crop_raw == "cotton"                                   ~ "cotton",
+      prev_crop_raw == "peanut"                                   ~ "peanut",
+      prev_crop_raw %in% c("soybean", "soybeans")                 ~ "soybean",
+      prev_crop_raw == "sorghum"                                  ~ "sorghum",
+      prev_crop_raw %in% c("wheat", "winter wheat", "2019/20 wheat") ~ "wheat",
+      TRUE                                                         ~ "others"
+    ) %>%
+    # 3) make it a factor with the exact ordering you want
+    factor(levels = c("cotton", "peanut", "soybean", "sorghum", "wheat", "others"))
+  ) %>%
+  select(-previous_crop, -prev_crop_raw) %>%
+  clean_names()
+
+meta_clean
+
+```
+
+
+
+```{r}
+summary(meta_clean)
+```
+
+
 ```{r exporting wrangled data set}
 
-write_csv(meta_clean,
-          "../data/training_meta_clean.csv")
+#write_csv(meta_clean,
+          #"../data/training_meta_clean.csv")
 ```
 
 
@@ -187,8 +255,8 @@ The following code chunk will export the wrangled data into a .csv.
 
 ```{r exporting wrangled data set}
 
-write_csv(merged_clean,
-          "../data/training_merged_clean.csv")
+#write_csv(merged_clean,
+          #"../data/training_merged_clean.csv")
 ```
 
 
@@ -346,8 +414,8 @@ daymet_all_unnest
 
 ```{r}
 
-write_csv(daymet_all_unnest,
-          "../data/merged_fieldweatherdata.csv"
+#write_csv(daymet_all_unnest,
+          #"../data/merged_fieldweatherdata.csv"
           )
 
 ```
@@ -375,9 +443,9 @@ library(tidyverse)
 
 ```{r}
 
-fieldweather <- read_csv("../data/merged_fieldweatherdata.csv")
+#fieldweather <- read_csv("../data/merged_fieldweatherdata.csv")
 
-fieldweather
+#fieldweather
 
 ```
 
@@ -545,9 +613,51 @@ finalplots$plot #$plot to print all the ggplots for each variables
 
 ```{r}
 
-write_csv(fe_month_sum_wide,
+#write_csv(fe_month_sum_wide,
           # "../data/weather_monthsum.csv")
 
 ```
 
 
+
+# Feature engineering "planting stages" and "harvest stages":
+
+The code chunk below is to feature engineer planting and harvest stages based on the following cut-offs for planting day of the year (plant_doy) and harvest day of the year (harvest_doy):
+
+Planting stages:
+ - early: plant_doy ≤ 120
+ - normal: plant_doy = 121–150
+ - late: plant_doy > 150
+
+Harvest stages:
+ - early: harvest_doy ≤ 275
+ - normal: harvest_doy = 276–305
+ - late: harvest_doy > 305
+
+
+```{r}
+
+trait_avg_df <- trait_avg_df %>%
+mutate(
+    planting_stages = case_when(
+      plant_doy <= 120                     ~ "early",
+      plant_doy >= 121 & plant_doy <= 150  ~ "normal",
+      plant_doy > 150                      ~ "late"
+    ) %>% 
+      fct_relevel("early","normal","late"),
+    
+    harvest_stages = case_when(
+      harvest_doy <= 275                    ~ "early",
+      harvest_doy >= 276 & harvest_doy <= 305 ~ "normal",
+      harvest_doy > 305                     ~ "late"
+    ) %>% 
+      fct_relevel("early","normal","late")
+  ) %>%
+  select( -plant_doy, -harvest_doy) %>%
+  ungroup()
+
+trait_avg_df
+
+View(trait_avg_df)
+
+```
