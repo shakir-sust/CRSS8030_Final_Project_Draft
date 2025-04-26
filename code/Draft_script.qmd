@@ -560,7 +560,7 @@ The following code chunk will summarize daily weather variables based on month.
 ```{r fe_month_sum}
 
 fe_month_sum <- fe_month %>%
-  group_by(year, site, hybrid, lon, lat, month_abb, yield, prev_crop, planting_stages, harvest_stages) %>% #If we do a summarise() after group_by(), any column that's not in the group_by() is gone, so we need to include "strength_gtex" in the group_by() to include it in the data frame because "strength_gtex" is our response variable so we must keep it in the data frame 
+  group_by(year, site, hybrid, lon, lat, month_abb, yield, prev_crop, planting_stages, harvest_stages) %>% #If we do a summarise() after group_by(), any column that's not in the group_by() is gone, so we need to include "yield" in the group_by() to include it in the data frame because "yield" is our response variable so we must keep it in the data frame 
   #Because we are gonna be applying a "summarize()" function to different columns, we are gonna use a function called "across()" 
   summarise(across(.cols = c(soil.ph, 
                              soil.om.pct, 
@@ -1069,23 +1069,23 @@ final_fit %>%
 
 ```{r}
 final_spec %>%
-  fit(strength_gtex ~ .,
+  fit(yield ~ .,
       data = bake(weather_prep, 
                   weather_train)) %>%
   augment(new_data = bake(weather_prep, 
                           weather_train)) %>% 
-  rmse(strength_gtex, .pred) %>%
+  rmse(yield, .pred) %>%
   bind_rows(
     
     
 # R2
 final_spec %>%
-  fit(strength_gtex ~ .,
+  fit(yield ~ .,
       data = bake(weather_prep, 
                   weather_train)) %>%
   augment(new_data = bake(weather_prep, 
                           weather_train)) %>% 
-  rsq(strength_gtex, .pred))
+  rsq(yield, .pred))
 ```
 
 
@@ -1094,7 +1094,7 @@ final_spec %>%
 ```{r}
 final_fit %>%
   collect_predictions() %>%
-  ggplot(aes(x = strength_gtex,
+  ggplot(aes(x = yield,
              y = .pred)) +
   geom_point() +
   geom_abline() +
@@ -1108,7 +1108,7 @@ final_fit %>%
 
 ```{r final_spec}
 final_spec %>%
-  fit(strength_gtex ~ .,
+  fit(yield ~ .,
          data = bake(weather_prep, weather_train)) %>% #There little change in variable improtance if you use full dataset
     vi() %>%
   mutate(
@@ -1370,23 +1370,23 @@ Metrics on **train set** (for curiosity and compare to test set):
 ```{r}
 # RMSE
 final_spec %>%
-  fit(strength_gtex ~ .,
+  fit(yield ~ .,
       data = bake(weather_prep, 
                   weather_train)) %>%
   augment(new_data = bake(weather_prep, 
                           weather_train)) %>% 
-  rmse(strength_gtex, .pred) %>%
+  rmse(yield, .pred) %>%
   bind_rows(
     
     
     # R2
     final_spec %>%
-      fit(strength_gtex ~ .,
+      fit(yield ~ .,
           data = bake(weather_prep, 
                       weather_train)) %>%
       augment(new_data = bake(weather_prep, 
                               weather_train)) %>% 
-      rsq(strength_gtex, .pred)
+      rsq(yield, .pred)
     
   )
 
@@ -1413,7 +1413,7 @@ Predicted vs. observed plot:
 ```{r}
 final_fit %>%
   collect_predictions() %>%
-  ggplot(aes(x = strength_gtex,
+  ggplot(aes(x = yield,
              y = .pred)) +
   geom_point() +
   geom_abline() +
@@ -1442,7 +1442,7 @@ The variables with the **largest average decrease in accuracy** [after being per
 ```{r}
 
 final_spec %>%
-  fit(strength_gtex ~ .,
+  fit(yield ~ .,
          data = bake(weather_prep, weather)) %>%
     vi() %>%
   mutate(
