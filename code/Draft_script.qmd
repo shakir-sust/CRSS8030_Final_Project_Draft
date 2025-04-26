@@ -883,6 +883,8 @@ xgb_grid <- grid_latin_hypercube(
 xgb_grid
 ```
 
+Note: the following code chunk would not work if "tree_depth" and "learn_rate" were not fine tuned in the "xgb_spec" object.
+
 ```{r}
 ggplot(data = xgb_grid,
        aes(x = tree_depth, 
@@ -906,7 +908,7 @@ library(parallel)
 set.seed(76544)
 
 #parallel processing
-registerDoParallel(cores = parallel::detectCores()-1)
+registerDoParallel(cores = parallel::detectCores()-1) #starts parallel processing
 
 xgb_res <- tune_race_anova(object = xgb_spec,
                       preprocessor = weather_recipe,
@@ -914,7 +916,7 @@ xgb_res <- tune_race_anova(object = xgb_spec,
                       grid = xgb_grid,
                       control = control_race(save_pred = TRUE))
 
-stopImplicitCluster()
+stopImplicitCluster() #ends parallel processing
 
 beepr::beep()
 
@@ -1024,9 +1026,9 @@ best_rmse %>%
 ```{r final_spec_fit}
 final_spec <- boost_tree(
   trees = best_r2$trees,           # Number of boosting rounds (trees)
-  tree_depth = best_r2$tree_depth, # Maximum depth of each tree
-  min_n = best_r2$min_n,           # Minimum number of samples to split a node
-  learn_rate = best_r2$learn_rate  # Learning rate (step size shrinkage)
+  tree_depth = best_r2$tree_depth #, # Maximum depth of each tree
+  #min_n = best_r2$min_n,           # Minimum number of samples to split a node
+  #learn_rate = best_r2$learn_rate  # Learning rate (step size shrinkage)
 ) %>%
   set_engine("xgboost") %>%
   set_mode("regression")
@@ -1058,15 +1060,7 @@ final_fit %>%
   collect_metrics()
 ```
 
--R2 & RMSE = 
-
--best_r2_pct_loss = 
-
--best_r2_one_std_error = 
-
--best_rmse_pct_loss = 
-
--best_rmse_one_std_err = 
+ 
 
 ## 8. Evaluate on Training Set
 
@@ -1102,8 +1096,8 @@ final_fit %>%
   geom_point() +
   geom_abline() +
   geom_smooth(method = "lm") +
-  scale_x_continuous(limits = c(20, 40)) +
-  scale_y_continuous(limits = c(20, 40)) 
+  scale_x_continuous() +
+  scale_y_continuous() 
 ```
 
 
