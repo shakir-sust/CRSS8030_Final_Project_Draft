@@ -1165,7 +1165,8 @@ A given model type can be fit with different engines (e.g., through different pa
 rf_spec <- 
   # Specifying random forest as our model type, asking to tune the hyperparameters
   rand_forest(trees = tune(),
-              mtry = tune() #both "trees" and "mtry" are model-type level hyperparameters, meaning that we fine tune "trees" and "mtry" inside "rand_forest()"
+              mtry = tune(),
+              min_n = tune()#both "trees" and "mtry" are model-type level hyperparameters, meaning that we fine tune "trees" and "mtry" inside "rand_forest()"
               ) %>%
     # Specify the engine (= package)
     set_engine("ranger") %>% #specifying "ranger" as the engine/package to run random forest 
