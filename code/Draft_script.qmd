@@ -1142,7 +1142,8 @@ library(ranger)
 library(finetune)
 ```
 
-## 2. Random Forest Training  
+## 2. Random Forest Training 
+
 ### a. Random Forest Model specification  
 
 First, let's specify:  
@@ -1215,7 +1216,7 @@ set.seed(76544)
 
 rf_grid_result <- tune_sim_anneal(object = rf_spec,
                      preprocessor = weather_recipe,
-                     resamples = resampling_foldcv,
+                     resamples = rf_resampling_foldcv,
                     #param_info = rf_param,
                     iter = 10 
                      )
@@ -1247,16 +1248,10 @@ rf_grid_result %>%
 ```
 
 
-We want to minimize the RMSE. The lower the RMSE, the better. In the legend section of the RMSE grid plot seen above, the lowest RMSE is"2.85" which has a dark purple color, and we see the dark purple colored dot is on 4 th iteration, which indicates that the lowest RMSE [= "2.85"] was obtained in the 4 th iteration.
-
-
-What tree_depth and mtry values created lowest RMSE?  
-
-tree_depth = ~ 110; mtry = ~ 22 [when we have 10 iterations]
-
 Now, let's look into R2 (higher is better):  
 
 ```{r R2}
+
 rf_grid_result %>%
   collect_metrics() %>%
   filter(.metric == "rsq") %>%
@@ -1275,15 +1270,11 @@ rf_grid_result %>%
 
 We want to see higher R2 (R2: higher is better).
 
-We want to see a maximized R2. The higher the R2, the better. In the legend section of the R2 grid plot seen above, the highest R2 is "0.16" which has a yellow color, and we see the yellow colored dot is on 4 th iteration, which indicates that the highest R2 [= "0.16"] was obtained in the 4 th iteration.
 
-What tree_depth and min criterion values created highest R2?  
-
-tree_depth = ~110; mtry = ~ 22 [this was the best result for 10 iterations]
-
-> Previously, we selected the single best model. Now, let's select the best model by "percent loss" of the metric, so we choose a model among the top ones that is more parsimonious.  
+The following code chunk will select the best model based on "percent loss" of the metric.
 
 ```{r}
+
 # Based on lowest RMSE
 best_rmse <- rf_grid_result %>%
   select_by_pct_loss("trees",
@@ -1296,7 +1287,11 @@ best_rmse
 ```
 
 
+The following code chunk will select the best model based on greatest "R2"
+
+
 ```{r}
+
 # Based on greatest R2
 best_r2 <- rf_grid_result %>%
   select_by_pct_loss("trees",
