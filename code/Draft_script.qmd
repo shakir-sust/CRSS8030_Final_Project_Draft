@@ -839,9 +839,10 @@ XgBoost **hyperparameters**:
 
 xgb_spec <- boost_tree(
   trees = tune(),
-  tree_depth = tune(),  # Maximum depth of each tree
-  min_n = tune(),  # Minimum samples required to split a node
-  learn_rate = tune()) %>% #Specifying XgBoost as our model type, asking to tune the hyperparameters
+  tree_depth = tune() # ,  # Maximum depth of each tree
+  #min_n = tune(),  # Minimum samples required to split a node
+  #learn_rate = tune()
+  ) %>% #Specifying XgBoost as our model type, asking to tune the hyperparameters
   set_engine("xgboost") %>% #specify engine 
   set_mode("regression")  # Set to mode
       
@@ -872,10 +873,10 @@ We use Latin hypercube sampling to generate a diverse grid of hyperparameter com
 ```{r }
 
 xgb_grid <- grid_latin_hypercube(
-  tree_depth(),
-  min_n(),
-  learn_rate(),
   trees(),
+  tree_depth(),
+  #min_n(),
+  #learn_rate(),
   size = 10
 )
 
